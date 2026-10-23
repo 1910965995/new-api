@@ -25,6 +25,31 @@ import (
 	"gorm.io/gorm"
 )
 
+func TestDecideRelayRetryDrainKeyExhaustedRequiresDisable(t *testing.T) {
+	previousDisable := common.AutomaticDisableChannelEnabled
+	t.Cleanup(func() { common.AutomaticDisableChannelEnabled = previousDisable })
+
+	err := types.NewError(errors.New(`drain mode: upstream response matched key exhaustion keyword "test"`), types.ErrorCodeChannelDrainKeyExhausted)
+
+	for _, tc := range []struct {
+		name      string
+		globalOn  bool
+		autoBan   bool
+		wantRetry bool
+	}{
+		{name: "disable available retries with the next key", globalOn: true, autoBan: true, wantRetry: true},
+		{name: "auto ban off stops instead of looping on the same key", globalOn: true, autoBan: false, wantRetry: false},
+		{name: "global disable off stops", globalOn: false, autoBan: true, wantRetry: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			common.AutomaticDisableChannelEnabled = tc.globalOn
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			common.SetContextKey(c, constant.ContextKeyChannelAutoBan, tc.autoBan)
+			assert.Equal(t, tc.wantRetry, ShouldRetryRelayError(c, err, 0))
+		})
+	}
+}
+
 func TestMatchChannelExhaustionContent(t *testing.T) {
 	previous := operation_setting.AutomaticDisableKeywords
 	operation_setting.AutomaticDisableKeywords = []string{

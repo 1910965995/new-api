@@ -31,6 +31,15 @@ func DecideRelayRetry(c *gin.Context, err *types.NewAPIError, retryTimes int) Po
 	if GetChannelConstraints(c).SuppressesRetry() {
 		return PolicyDecision{Action: "stop", Reason: "pinned_channel", Source: "channel_constraint"}
 	}
+	if err.GetErrorCode() == types.ErrorCodeChannelDrainKeyExhausted {
+		// Channel errors retry without an attempt budget, so a drain
+		// exhaustion may only retry when the failing key will actually be
+		// disabled; otherwise the same key would be picked again forever.
+		if common.AutomaticDisableChannelEnabled && common.GetContextKeyBool(c, constant.ContextKeyChannelAutoBan) {
+			return PolicyDecision{Action: "retry", Reason: "drain_key_exhausted", Source: "system"}
+		}
+		return PolicyDecision{Action: "stop", Reason: "drain_key_not_disableable", Source: "system"}
+	}
 	if types.IsChannelError(err) {
 		return PolicyDecision{Action: "retry", Reason: "channel_error", Source: "system"}
 	}
