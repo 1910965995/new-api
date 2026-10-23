@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	kitdto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 
 	"github.com/gin-gonic/gin"
@@ -23,6 +24,28 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
+
+func TestMatchChannelExhaustionContent(t *testing.T) {
+	previous := operation_setting.AutomaticDisableKeywords
+	operation_setting.AutomaticDisableKeywords = []string{
+		"Your credit balance is too low",
+		"doesn't have enough credits",
+	}
+	t.Cleanup(func() { operation_setting.AutomaticDisableKeywords = previous })
+
+	keyword, matched := MatchChannelExhaustionContent("The account behind this API key doesn't have enough credits. Please top up.")
+	require.True(t, matched)
+	assert.Equal(t, "doesn't have enough credits", keyword)
+
+	_, matched = MatchChannelExhaustionContent("Your CREDIT BALANCE IS TOO LOW to complete this request.")
+	require.True(t, matched)
+
+	_, matched = MatchChannelExhaustionContent("The answer to everything is 42.")
+	assert.False(t, matched)
+
+	_, matched = MatchChannelExhaustionContent("")
+	assert.False(t, matched)
+}
 
 func TestShouldRetryRelayErrorHonorsChannelPinOnChannelError(t *testing.T) {
 	err := types.NewError(errors.New("channel failed"), types.ErrorCodeChannelNoAvailableKey)

@@ -60,6 +60,7 @@ type ChannelMeta struct {
 	ChannelId            int
 	ChannelIsMultiKey    bool
 	ChannelMultiKeyIndex int
+	ChannelMultiKeyMode  constant.MultiKeyMode
 	ChannelBaseUrl       string
 	ApiType              int
 	ApiVersion           string
@@ -73,6 +74,12 @@ type ChannelMeta struct {
 	UpstreamModelName    string
 	IsModelMapped        bool
 	SupportStreamOptions bool // 是否支持流式选项
+}
+
+// IsDrainMode reports whether this attempt runs on a multi-key channel in
+// drain mode, where the active key is only abandoned after it fails.
+func (cm *ChannelMeta) IsDrainMode() bool {
+	return cm != nil && cm.ChannelIsMultiKey && cm.ChannelMultiKeyMode == constant.MultiKeyModeDrain
 }
 
 type TokenCountMeta struct {
@@ -276,6 +283,7 @@ func (info *RelayInfo) InitChannelMeta(c *gin.Context) {
 	info.ClaudeToChatStreamState = nil
 	info.ChatToGeminiStreamState = nil
 	channelType := common.GetContextKeyInt(c, constant.ContextKeyChannelType)
+	multiKeyMode, _ := common.GetContextKeyType[constant.MultiKeyMode](c, constant.ContextKeyChannelMultiKeyMode)
 	paramOverride := common.GetContextKeyStringMap(c, constant.ContextKeyChannelParamOverride)
 	headerOverride := common.GetContextKeyStringMap(c, constant.ContextKeyChannelHeaderOverride)
 	apiType, _ := common.ChannelType2APIType(channelType)
@@ -284,6 +292,7 @@ func (info *RelayInfo) InitChannelMeta(c *gin.Context) {
 		ChannelId:            common.GetContextKeyInt(c, constant.ContextKeyChannelId),
 		ChannelIsMultiKey:    common.GetContextKeyBool(c, constant.ContextKeyChannelIsMultiKey),
 		ChannelMultiKeyIndex: common.GetContextKeyInt(c, constant.ContextKeyChannelMultiKeyIndex),
+		ChannelMultiKeyMode:  multiKeyMode,
 		ChannelBaseUrl:       common.GetContextKeyString(c, constant.ContextKeyChannelBaseUrl),
 		ApiType:              apiType,
 		ApiVersion:           c.GetString("api_version"),

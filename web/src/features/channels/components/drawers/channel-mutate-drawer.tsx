@@ -4633,6 +4633,10 @@ export function ChannelMutateDrawer({
                             value: 'polling',
                             label: t('Polling'),
                           },
+                          {
+                            value: 'drain',
+                            label: t('Drain'),
+                          },
                         ]}
                         onValueChange={field.onChange}
                         value={field.value}
@@ -4650,6 +4654,7 @@ export function ChannelMutateDrawer({
                             <SelectItem value='polling'>
                               {t('Polling')}
                             </SelectItem>
+                            <SelectItem value='drain'>{t('Drain')}</SelectItem>
                           </SelectGroup>
                         </SelectContent>
                       </Select>
@@ -4660,6 +4665,10 @@ export function ChannelMutateDrawer({
                               'Polling mode requires Redis and memory cache, otherwise performance will be significantly degraded'
                             )}
                           </span>
+                        ) : multiKeyType === 'drain' ? (
+                          t(
+                            'Always use the first available key; switch to the next key only after the current one is disabled'
+                          )
                         ) : (
                           t(
                             'Randomly select a key from the pool for each request'

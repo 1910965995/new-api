@@ -79,6 +79,21 @@ func ShouldDisableChannel(err *types.NewAPIError) bool {
 	return search
 }
 
+// MatchChannelExhaustionContent checks a successful (HTTP 200) upstream
+// response body against the automatic-disable keywords. Some upstreams wrap
+// quota-exhaustion errors inside a normal-looking completion, so the response
+// content is the only signal that the key is exhausted.
+func MatchChannelExhaustionContent(text string) (string, bool) {
+	if len(operation_setting.AutomaticDisableKeywords) == 0 || text == "" {
+		return "", false
+	}
+	matched, words := AcSearch(strings.ToLower(text), operation_setting.AutomaticDisableKeywords, true)
+	if !matched || len(words) == 0 {
+		return "", false
+	}
+	return words[0], true
+}
+
 func ShouldEnableChannel(newAPIError *types.NewAPIError, status int) bool {
 	if !common.AutomaticEnableChannelEnabled {
 		return false

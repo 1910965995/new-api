@@ -51,6 +51,28 @@ func TestUpdateChannelStatusPersistsMultiKeyState(t *testing.T) {
 	assert.Equal(t, 1, stored.ChannelInfo.MultiKeyPollingIndex)
 }
 
+func TestGetNextEnabledKeyDrainModeKeepsFirstEnabledKey(t *testing.T) {
+	channel := &Channel{
+		Key: "key-a\nkey-b\nkey-c",
+		ChannelInfo: ChannelInfo{
+			IsMultiKey:        true,
+			MultiKeyMode:      constant.MultiKeyModeDrain,
+			MultiKeyStatusList: map[int]int{0: common.ChannelStatusAutoDisabled},
+		},
+	}
+
+	key, index, apiErr := channel.GetNextEnabledKey()
+	require.Nil(t, apiErr)
+	assert.Equal(t, "key-b", key)
+	assert.Equal(t, 1, index)
+
+	// Drain keeps serving the same key on every call until it is disabled.
+	again, sameIndex, apiErr := channel.GetNextEnabledKey()
+	require.Nil(t, apiErr)
+	assert.Equal(t, "key-b", again)
+	assert.Equal(t, 1, sameIndex)
+}
+
 func TestSaveStatusStateFromSingleKeySnapshotPreservesUnownedColumns(t *testing.T) {
 	setupChannelStatusTest(t)
 

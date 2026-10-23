@@ -121,6 +121,7 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	var secondLastStreamData string // 保留倒数第二个stream data；部分兼容网关把完整usage放在倒数第二个事件
 	seenStreamToolCalls := make(map[string]struct{})
 	var streamFunctionCallNames []string
+	var drainErr *types.NewAPIError
 
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
 		if lastStreamData != "" {
@@ -140,8 +141,22 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 				logger.LogError(c, common.LogText("error processing stream token data: %s", err.Error()))
 				sr.Error(err)
 			}
+			if drainErr == nil && info.ChannelMeta.IsDrainMode() {
+				if keyword, matched := service.MatchChannelExhaustionContent(responseTextBuilder.String()); matched {
+					// Forwarding lags one event behind, so the chunk that
+					// completed the keyword has not reached the client yet;
+					// stop here and let the relay layer fail over to the
+					// next enabled key.
+					drainErr = newDrainKeyExhaustedError(keyword)
+					sr.Stop(drainErr)
+				}
+			}
 		}
 	})
+
+	if drainErr != nil {
+		return nil, drainErr
+	}
 
 	info.StreamStatus.RequireTerminal()
 
@@ -249,6 +264,17 @@ func observeStreamChoices(info *relaycommon.RelayInfo, data string, seen map[str
 	}
 }
 
+// newDrainKeyExhaustedError marks an upstream 200 response whose content
+// matched a configured exhaustion keyword. The channel: error code makes the
+// relay layer disable the current key and retry with the next enabled key.
+func newDrainKeyExhaustedError(keyword string) *types.NewAPIError {
+	return types.NewError(
+		fmt.Errorf("drain mode: upstream response matched key exhaustion keyword %q", keyword),
+		types.ErrorCodeChannelDrainKeyExhausted,
+		types.ErrOptionWithStatusCode(http.StatusBadGateway),
+	)
+}
+
 func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	defer service.CloseResponseBodyGracefully(resp)
 
@@ -281,6 +307,17 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 
 	if oaiError := simpleResponse.GetOpenAIError(); oaiError != nil && oaiError.Type != "" {
 		return nil, types.WithOpenAIError(*oaiError, resp.StatusCode)
+	}
+
+	if info.ChannelMeta.IsDrainMode() {
+		var contentBuilder strings.Builder
+		for _, choice := range simpleResponse.Choices {
+			contentBuilder.WriteString(choice.Message.StringContent())
+			contentBuilder.WriteString(choice.Message.GetReasoningContent())
+		}
+		if keyword, matched := service.MatchChannelExhaustionContent(contentBuilder.String()); matched {
+			return nil, newDrainKeyExhaustedError(keyword)
+		}
 	}
 
 	info.ObserveResponseModel(simpleResponse.Model)
