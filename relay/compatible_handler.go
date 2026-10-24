@@ -109,6 +109,9 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 		}
 		requestBody = common.NewReplayableBodyReader(storage)
 	} else {
+		if info.ChannelSetting.ToolImageToUserEnabled {
+			helper.MoveToolImagesToUserMessages(request)
+		}
 		convertedRequest, err := adaptor.ConvertOpenAIRequest(c, info, request)
 		if err != nil {
 			return newConvertRequestFailedError(c, info, err)

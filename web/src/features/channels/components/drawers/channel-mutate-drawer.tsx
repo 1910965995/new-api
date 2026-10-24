@@ -298,6 +298,7 @@ const SENSITIVE_FORM_FIELDS = [
   'azure_responses_version',
   'force_format',
   'thinking_to_content',
+  'tool_image_to_user_enabled',
   'proxy',
   'http_protocol',
   'http2_connection_shards',
@@ -1911,6 +1912,32 @@ export function ChannelMutateDrawer({
             <FormLabel>{t('Thinking to Content')}</FormLabel>
             <FormDescription>
               {t('Convert reasoning_content to <think> tag in content')}
+            </FormDescription>
+          </div>
+          <FormControl>
+            <Switch
+              disabled={sensitiveLocked}
+              checked={field.value}
+              onCheckedChange={field.onChange}
+            />
+          </FormControl>
+        </FormItem>
+      )}
+    />
+  )
+
+  const toolImageFields = (
+    <FormField
+      control={form.control}
+      name='tool_image_to_user_enabled'
+      render={({ field }) => (
+        <FormItem className='flex items-center justify-between px-4 py-3'>
+          <div className='space-y-0.5'>
+            <FormLabel>{t('Move Tool Images to User Message')}</FormLabel>
+            <FormDescription>
+              {t(
+                'Resend images inside tool results as a following user message, for upstreams that only accept text tool outputs'
+              )}
             </FormDescription>
           </div>
           <FormControl>
@@ -4767,6 +4794,7 @@ export function ChannelMutateDrawer({
                 {formatFields}
                 {ollamaOpenAIChatFields}
                 {thinkingFields}
+                {toolImageFields}
                 {passthroughFields}
                 {systemPromptFields}
                 {systemPromptOverrideFields}
